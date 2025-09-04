@@ -3,8 +3,10 @@ from fastapi import APIRouter, UploadFile, Depends, status
 from fastapi.responses import JSONResponse
 from controllers import DataController, ProjectController
 from models import ResponseStatus
-import os
+import logging
 import aiofiles
+
+logger = logging.getLogger("uvicorn.error")
 
 data_router = APIRouter(
     prefix="/data",
@@ -39,12 +41,14 @@ async def upload_file(
                 await out_file.write(chunk)
 
     except Exception as e:
+        logger.error(f"Error uploading file: {e}")
+        # NOT all errors should be exposed to the user (might be sensitive)
+        # log the error for just internal review
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "is_valid": False,   
                 "response_signal": ResponseStatus.FILE_UPLOADED_FAILED.value,
-                "error": str(e)
             }
         )
 
