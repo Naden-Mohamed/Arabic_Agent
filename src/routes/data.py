@@ -2,7 +2,9 @@ from helpers.config import get_settings, Settings
 from fastapi import APIRouter, UploadFile, Depends, status
 from fastapi.responses import JSONResponse
 from controllers import DataController, ProjectController
-
+from models import ResponseStatus
+import os
+import aiofiles
 
 data_router = APIRouter(
     prefix="/data",
@@ -26,16 +28,24 @@ async def upload_file(
                 "response_signal": response_signal
             }
         )
-    else:
-        project_path = ProjectController().get_project_path(project_id=project_id)
-        file_location = f"{project_path}/{file.filename}"
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={
-                "is_valid": is_valid,   
-                "response_signal": response_signal,
-                "file_location": file_location
-                
-            }  )     
+
+    project_dir_path = ProjectController().get_project_path(project_id=project_id)
+    file_path = os.path.join(project_dir_path, file.filename)
+
+    async with aiofiles.open(file_path, 'wb') as out_file:
+        while chunk := await file.read(Settings().FILE_MAX_CHUNK_SIZE):
+            await out_file.write(chunk)
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "is_valid": is_valid,   
+            "response_signal": ResponseStatus.FILE_UPLOADED_SUCCESSFULLY.value,
+            "file_path": file_path
+        }
+    )
+
+
+    
 
 
