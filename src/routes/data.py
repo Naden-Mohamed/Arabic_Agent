@@ -1,10 +1,11 @@
 from helpers.config import get_settings, Settings
 from fastapi import APIRouter, UploadFile, Depends, status
 from fastapi.responses import JSONResponse
-from controllers import DataController, ProjectController
+from controllers import DataController, ProjectController, ProcessController
 from models import ResponseStatus
 import logging
 import aiofiles
+from .schemas.data_schema import DataSchema
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -33,7 +34,7 @@ async def upload_file(
         )
 
     project_dir_path = ProjectController().get_project_path(project_id=project_id)
-    file_path, file_id = data_controller.generate_unique_filepath(original_filename=file.filename, project_id=project_id)[0]
+    file_path, file_id = data_controller.generate_unique_filepath(original_filename=file.filename, project_id=project_id)
 
     try:
         async with aiofiles.open(file_path, 'wb') as out_file:
@@ -57,10 +58,32 @@ async def upload_file(
         content={
             "is_valid": is_valid,   
             "response_signal": ResponseStatus.FILE_UPLOADED_SUCCESSFULLY.value,
-            "file_path": file_path
+            "file_path": file_path,
+            "file_id": file_id
         }
     )
 
+
+@data_router.post("/process/{project_id}")
+async def process_file(project_id: str, data: DataSchema):
+   
+    file_id = data.file_id
+    chunk_size = data.chunk_size
+    chunk_overlap = data.chunk_overlap_size
+
+    process_controller = ProcessController(project_id=project_id)
+    file_content = process_controller.get_file_content(file_id=file_id)
+    file_chunks = process_controller.process_file_content(file_id=file_id, file_content=file_content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    if file_chunks is None or len(file_chunks) == 0:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "is_valid": False,   
+                "response_signal": ResponseStatus.PROCESSING_FAILED.value,
+                "file_id": file_id
+            }
+        )
+    return file_chunks
 
     
 
