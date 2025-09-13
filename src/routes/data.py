@@ -1,11 +1,12 @@
 from helpers.config import get_settings, Settings
-from fastapi import APIRouter, UploadFile, Depends, status
+from fastapi import APIRouter, UploadFile, Depends, status, Request
 from fastapi.responses import JSONResponse
 from controllers import DataController, ProjectController, ProcessController
 from models import ResponseStatus
 import logging
 import aiofiles
 from .schemas.data_schema import DataSchema
+from models.ProjectModel import ProjectModel
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -16,11 +17,17 @@ data_router = APIRouter(
 
 @data_router.post("/upload/{project_id}")
 async def upload_file(
+    request: Request, # this store all info about each request used to access app state exsit in main if needed 
     project_id: str,
     file: UploadFile,
     settings: Settings = Depends(get_settings)
 ):
+    # If project_id wasn't given, create one
+    project_model = ProjectModel(db_client=request.app.mongodb_client)
+    project = await project_model.get_project_or_create_one(project_id=project_id)
 
+
+    # Validate file properties
     data_controller = DataController()
     is_valid, response_signal = data_controller.validate_file(file = file)
 
@@ -59,7 +66,8 @@ async def upload_file(
             "is_valid": is_valid,   
             "response_signal": ResponseStatus.FILE_UPLOADED_SUCCESSFULLY.value,
             "file_path": file_path,
-            "file_id": file_id
+            "file_id": file_id,
+            "project_id" : str(project.id)
         }
     )
 

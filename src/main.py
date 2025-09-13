@@ -20,10 +20,10 @@ async def shutdown_db_client():
     print("Disconnected from the MongoDB database!")
 
 
-@app.post("/store")
-async def store_data(item: dict):
-    result = await db_name.insert_one(item)
-    return {"inserted_id": str(result.inserted_id)}
+# @app.post("/store")
+# async def store_data(item: dict):
+#     result = await db_name.insert_one(item)
+#     return {"inserted_id": str(result.inserted_id)}
 
 app.include_router(base.base_router)  
 app.include_router(data.data_router)  
