@@ -7,6 +7,9 @@ import logging
 import aiofiles
 from .schemas.data_schema import DataSchema
 from models.ProjectModel import ProjectModel
+from models.DataChunkModel import DataChunkModel
+from models.db_schemas import DataChunk
+
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -63,21 +66,24 @@ async def upload_file(
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
-            "is_valid": is_valid,   
+            # "is_valid": is_valid,   
             "response_signal": ResponseStatus.FILE_UPLOADED_SUCCESSFULLY.value,
-            "file_path": file_path,
+            # "file_path": file_path,
             "file_id": file_id,
-            "project_id" : str(project.id)
+            # "project_id" : str(project.id) don't expose yourself
         }
     )
 
 
 @data_router.post("/process/{project_id}")
-async def process_file(project_id: str, data: DataSchema):
+async def process_file(request: Request,project_id: str, data: DataSchema):
    
     file_id = data.file_id
     chunk_size = data.chunk_size
     chunk_overlap = data.chunk_overlap_size
+
+    project_model = ProjectModel(db_client=request.app.mongodb_client)
+    project = await project_model.get_project_or_create_one(project_id=project_id)
 
     process_controller = ProcessController(project_id=project_id)
     file_content = process_controller.get_file_content(file_id=file_id)
@@ -91,7 +97,22 @@ async def process_file(project_id: str, data: DataSchema):
                 "file_id": file_id
             }
         )
-    return file_chunks
+    
+    file_chunks_records = [
+        DataChunk(
+            chunk_text= chunk.page_content, 
+            chunk_metadata= chunk.metadata,
+            chunk_order= idx + 1,
+            chunk_project_id= project.id
+    )
+        for idx, chunk in enumerate(file_chunks)
+    ]
+
+    data_chunk_model = DataChunkModel(db_client=request.app.mongodb_client)
+
+    inserted_count = await data_chunk_model.insert_many_chunks(chunks=file_chunks_records)
+
+    return inserted_count
 
     
 
