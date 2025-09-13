@@ -70,7 +70,7 @@ async def upload_file(
             "response_signal": ResponseStatus.FILE_UPLOADED_SUCCESSFULLY.value,
             # "file_path": file_path,
             "file_id": file_id,
-            # "project_id" : str(project.id) don't expose yourself
+            "project_id" : str(project.id) #don't expose yourself
         }
     )
 
@@ -81,6 +81,7 @@ async def process_file(request: Request,project_id: str, data: DataSchema):
     file_id = data.file_id
     chunk_size = data.chunk_size
     chunk_overlap = data.chunk_overlap_size
+    do_reset = data.do_reset
 
     project_model = ProjectModel(db_client=request.app.mongodb_client)
     project = await project_model.get_project_or_create_one(project_id=project_id)
@@ -103,17 +104,24 @@ async def process_file(request: Request,project_id: str, data: DataSchema):
             chunk_text= chunk.page_content, 
             chunk_metadata= chunk.metadata,
             chunk_order= idx + 1,
-            chunk_project_id= project.id
+            chunk_project_id= project.id,
+            id = file_id
     )
         for idx, chunk in enumerate(file_chunks)
     ]
 
     data_chunk_model = DataChunkModel(db_client=request.app.mongodb_client)
+    if do_reset == 1:
+        _= await data_chunk_model.delete_chunk_by_project_id(project_id=project.id)
 
     inserted_count = await data_chunk_model.insert_many_chunks(chunks=file_chunks_records)
 
-    return inserted_count
-
+    return JSONResponse(
+            content={  
+                "response_signal": ResponseStatus.PROCESSING_SUCCESSEDED.value,
+                "processed_chunks": inserted_count
+            }
+        )
     
 
 
