@@ -7,6 +7,27 @@ class ProjectModel(BaseDataModel):
         super().__init__(db_client = db_client)
         self.collection = self.db_client[DataBaseEnums.DATABASE_NAME.value][DataBaseEnums.PROJECTS_COLLECTION.value]
 
+    # Static method to create an instance of ProjectModel asynchronously since __init__ can't be async 
+    @classmethod
+    async def create_instance(cls, db_client: object):
+        instance = cls(db_client=db_client) # Call the constructor __init__
+        await instance.init_collection()
+        return instance
+
+
+    # Initialize collection if not found and it's indexes
+    async def init_collection(self):
+        all_collections = await self.db_client[DataBaseEnums.DATABASE_NAME.value].list_collection_names()
+        if DataBaseEnums.PROJECTS_COLLECTION.value not in all_collections:
+            self.collection = self.db_client[DataBaseEnums.DATABASE_NAME.value][DataBaseEnums.PROJECTS_COLLECTION.value]
+
+        indexes = Project.get_indexes()
+        for index in indexes:
+            await self.collection.create_index(
+                    index["key"],
+                    name = index["name"],
+                    unique=index["unique"]
+            )
 
 
     async def create_project(self, project:Project):

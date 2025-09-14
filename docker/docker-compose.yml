@@ -8,9 +8,9 @@ services:
       - "8000:8000"
     volumes:
       - ../src:/app
-    environment:
-      -  MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
-      -  MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}  
+    # environment:
+    #   -  MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+    #   -  MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}  
     env_file:
       - ../src/.env 
 

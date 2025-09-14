@@ -8,7 +8,9 @@ import aiofiles
 from .schemas.data_schema import DataSchema
 from models.ProjectModel import ProjectModel
 from models.DataChunkModel import DataChunkModel
-from models.db_schemas import DataChunk
+from models.db_schemas import DataChunk, Asset
+from models.AssetModel import AssetModel
+
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -26,7 +28,7 @@ async def upload_file(
     settings: Settings = Depends(get_settings)
 ):
     # If project_id wasn't given, create one
-    project_model = ProjectModel(db_client=request.app.mongodb_client)
+    project_model = await ProjectModel.create_instance(db_client=request.app.mongodb_client)
     project = await project_model.get_project_or_create_one(project_id=project_id)
 
 
@@ -62,15 +64,28 @@ async def upload_file(
                 "response_signal": ResponseStatus.FILE_UPLOADED_FAILED.value,
             }
         )
-
+    
+    asset_model = await AssetModel.create_instance(db_client=request.app.mongodb_client)
+    asset = Asset(
+        asset_project_id=project.id,
+        asset_type=file.content_type,
+        asset_name=file.filename,
+        asset_size= await data_controller.get_file_size(file_path=file_path),
+        asset_config= {
+            "file_path": file_path,
+            "file_id": file_id
+        }
+    )
+    asset_record = await asset_model.create_asset(asset=asset)
+    
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
             # "is_valid": is_valid,   
             "response_signal": ResponseStatus.FILE_UPLOADED_SUCCESSFULLY.value,
             # "file_path": file_path,
-            "file_id": file_id,
-            "project_id" : str(project.id) #don't expose yourself
+            "file_id": str(asset_record.id),
+            "project_id" : str(asset_record.asset_project_id )#don't expose yourself
         }
     )
 
@@ -83,7 +98,7 @@ async def process_file(request: Request,project_id: str, data: DataSchema):
     chunk_overlap = data.chunk_overlap_size
     do_reset = data.do_reset
 
-    project_model = ProjectModel(db_client=request.app.mongodb_client)
+    project_model = await ProjectModel.create_instance(db_client=request.app.mongodb_client)
     project = await project_model.get_project_or_create_one(project_id=project_id)
 
     process_controller = ProcessController(project_id=project_id)
@@ -110,7 +125,7 @@ async def process_file(request: Request,project_id: str, data: DataSchema):
         for idx, chunk in enumerate(file_chunks)
     ]
 
-    data_chunk_model = DataChunkModel(db_client=request.app.mongodb_client)
+    data_chunk_model = await DataChunkModel.create_instance(db_client=request.app.mongodb_client)
     if do_reset == 1:
         _= await data_chunk_model.delete_chunk_by_project_id(project_id=project.id)
 
