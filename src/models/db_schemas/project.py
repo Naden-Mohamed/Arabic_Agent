@@ -16,3 +16,14 @@ class Project(BaseModel):
     class Config:
     # if you find anything strange u don't know how to deal with just ignore it and don't raise error
         arbitrary_types_allowed = True
+
+
+    @classmethod # Static method
+    def get_indexes(cls):
+        return [
+            {
+                "key": ("project_id", 1), # 1 for Ascending, -1 for Decs
+                "name":"project_id_index_1",
+                "unique": True # Shouldn't be repeated
+            }
+        ]
